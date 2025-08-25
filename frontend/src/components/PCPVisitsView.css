@@ -1,0 +1,364 @@
+.calendar-view {
+  width: 100%;
+  max-width: 100%;
+  padding: 0 10px;
+}
+
+/* Statistics Panel - Similar to ConfigPanel statistics */
+.statistics-panel {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  border-left: 4px solid #27ae60;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.stats-header {
+  margin-bottom: 16px;
+}
+
+.stats-header h3 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 1.2em;
+  font-weight: 600;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 8px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 8px;
+  background-color: #ffffff;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.stat-label {
+  font-size: 0.85em;
+  color: #6c757d;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.4em;
+  font-weight: 700;
+  color: #27ae60;
+}
+
+/* Responsive adjustments for stats grid */
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.filters-container {
+  display: flex;
+  margin-bottom: 30px;
+  gap: 20px;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  position: relative;
+  z-index: 1;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  flex-grow: 1;
+  max-width: 300px;
+  position: relative;
+}
+
+.filter label {
+  font-weight: bold;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.filter select {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 10;
+}
+
+.filter select:focus {
+  outline: none;
+  border-color: #2C64CA;
+  box-shadow: 0 0 0 2px rgba(44, 100, 202, 0.2);
+}
+
+/* Facility badges and styling */
+.facilities-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+.facility-badge {
+  border-radius: 4px;
+  padding: 4px 6px;
+  color: #333333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  width: auto;
+  min-width: 80px;
+  max-width: calc(33.33% - 4px); /* Allow 3 per row instead of 2 */
+  flex-grow: 1;
+}
+
+.facility-id {
+  font-weight: bold;
+  font-size: 13px;
+  color: #333333;
+}
+
+.facility-count {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 1px 0;
+  color: #333333;
+}
+
+.facility-breakdown {
+  font-size: 9px;
+  opacity: 0.9;
+  width: 100%;
+  text-align: center;
+  white-space: normal;
+  word-break: break-word;
+  color: #333333;
+}
+
+.in-person {
+  font-weight: 600;
+}
+
+.telehealth {
+  font-style: italic;
+}
+
+/* Additional styles for improved calendar layout */
+.day-cell {
+  vertical-align: top;
+  padding: 8px;
+  width: calc((100% - 120px) / 5); /* Distribute remaining width among 5 weekdays */
+  height: auto;
+  min-height: 60px;
+  max-height: none;
+}
+
+/* Cell content styling - Match CalendarView */
+.cell-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.cell-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  overflow: visible;
+  z-index: 8;
+  position: relative;
+}
+
+/* Make calendar more compact */
+.calendar-grid {
+  table-layout: fixed;
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 auto;
+}
+
+.calendar-container {
+  overflow-x: auto; /* Allow horizontal scrolling if table is too wide */
+  max-width: 100%;
+  width: 100%;
+}
+
+.calendar-grid th {
+  padding: 8px 6px;
+  background-color: #2C64CA;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.calendar-grid td {
+  border: 1px solid #e1e8ed;
+}
+
+/* Week cell */
+.week-number {
+  width: 120px;
+  max-width: 120px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #e1e8ed;
+  text-align: left;
+  padding: 8px 6px;
+  vertical-align: top;
+  overflow: hidden;
+}
+
+.week-label {
+  font-weight: bold;
+  font-size: 14px;
+  color: #2C64CA;
+  margin-bottom: 2px;
+}
+
+.week-date-range {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-date {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+  font-weight: bold;
+}
+
+.visits-total {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  color: #333;
+}
+
+.no-data-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  color: #6c757d;
+  font-size: 16px;
+}
+
+.loading-container, .error-container {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.error-container {
+  color: #dc3545;
+}
+
+.calendar-grid th.week-column {
+  width: 120px;
+  max-width: 120px;
+  text-align: center;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+/* Travel Summary Legend - Positioned below filters on right side */
+.travel-summary-legend {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 10px;
+  background-color: white;
+  border: 2px solid #2C64CA;
+  border-radius: 8px;
+  padding: 16px;
+  min-width: 200px;
+  max-width: 220px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+}
+
+.travel-summary-legend h4 {
+  margin: 0 0 12px 0;
+  color: #2C64CA;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #e1e8ed;
+  padding-bottom: 8px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.summary-value {
+  font-size: 14px;
+  font-weight: bold;
+  color: #2C64CA;
+}
+
+/* Travel Time Display in Calendar Cells - Match CalendarView styling */
+.travel-time {
+  font-size: 0.8em;
+  color: #666;
+  font-weight: 500;
+  padding: 2px 4px;
+  background-color: #f8f9fa;
+  border-radius: 3px;
+  border: 1px solid #e9ecef;
+  margin-top: 2px;
+  white-space: nowrap;
+} 
