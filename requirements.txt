@@ -1,6 +1,5 @@
 Flask
 Flask-Cors
-gurobipy
 numpy
 pyomo
 ortools

@@ -18,7 +18,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from models.ortools_travel_optimized_model import create_and_solve_optimization_model
 from models.dataloader import load_pcp_facility_data, load_distance_matrices, load_provider_unavailable_dates
-from models.calendar_export import export_provider_schedule_to_ics
 from utils.quick_optimize_ortools import extract_patient_data_for_provider
 
 # CONFIGURATION - Change these values
@@ -34,11 +33,9 @@ UNAVAILABLE_DATES_FILE = "data/provider_unavailable_dates.csv"  # Optional: prov
 
 # OUTPUT CONFIGURATION
 OUTPUT_DIR = "results/schedules"       # Directory to save results
-CALENDAR_DIR = "results/calendars"     # Directory to save ICS calendar files
 SAVE_JSON = True                       # Save detailed JSON results
 SAVE_CSV = True                        # Save CSV schedule summary
 SAVE_SUMMARY = True                    # Save human-readable summary
-SAVE_CALENDARS = True                  # Save ICS calendar files for each provider
 
 def ensure_output_dir():
     """Create output directories if they don't exist."""
@@ -46,9 +43,6 @@ def ensure_output_dir():
         os.makedirs(OUTPUT_DIR)
         print(f"Created output directory: {OUTPUT_DIR}")
     
-    if SAVE_CALENDARS and not os.path.exists(CALENDAR_DIR):
-        os.makedirs(CALENDAR_DIR)
-        print(f"Created calendar directory: {CALENDAR_DIR}")
 
 def extract_patient_data_for_business_line(pcp_data, census_month):
     """Extract patient census data for entire business line from PCP_Facility data."""
@@ -410,53 +404,6 @@ def combine_provider_results(provider_results, pcp_data):
     
     return combined_results
 
-def export_provider_calendars(combined_results, pcp_data):
-    """
-    Export individual calendar files for each provider with schedules.
-    """
-    ensure_output_dir()  # Make sure calendar directory exists
-    calendar_files = []
-    
-    # Create reverse mapping from provider index to provider ID
-    idx_to_provider_id = {idx: p_id for p_id, idx in pcp_data['provider_mappings'].items()}
-    
-    for provider_key, provider_schedule in combined_results['schedule'].items():
-        if provider_schedule:  # Only export if provider has a schedule
-            # Extract provider index from provider_key (e.g., "provider_7" -> 7)
-            provider_index = int(provider_key.replace('provider_', ''))
-            provider_id = idx_to_provider_id.get(provider_index, f"Provider_{provider_index}")
-            
-            # Create filename with both provider ID and index for clarity
-            calendar_filename = os.path.join(CALENDAR_DIR, f"{provider_key}_{provider_id}_schedule.ics")
-            
-            # Convert facility indices back to facility IDs for better calendar display
-            readable_schedule = {}
-            for date, facilities in provider_schedule.items():
-                readable_facilities = {}
-                for facility_key, patients in facilities.items():
-                    if patients > 0:
-                        # Convert facility_X to actual facility ID
-                        facility_idx = int(facility_key.replace('facility_', ''))
-                        facility_id = pcp_data['unique_facilities'][facility_idx]
-                        readable_facilities[facility_id] = patients
-                
-                if readable_facilities:
-                    readable_schedule[date] = readable_facilities
-            
-            # Export calendar for this provider
-            if readable_schedule:
-                export_provider_schedule_to_ics(
-                    provider_id=provider_id,
-                    provider_schedule=readable_schedule, 
-                    output_filename=calendar_filename,
-                    timezone_str="US/Central",
-                    day_start=9,
-                    day_end=17
-                )
-                calendar_files.append(calendar_filename)
-                print(f"  📅 {provider_id}: {calendar_filename}")
-    
-    return calendar_files
 
 def main():
     print(f"=== {BUSINESS_LINE.upper()} SEQUENTIAL OPTIMIZATION ===")
@@ -526,11 +473,6 @@ def main():
         saved_files = save_results(combined_results, pcp_data, total_optimization_time, "business_line_sequential")
         print(f"✅ Saved {len(saved_files)} files to {OUTPUT_DIR}/")
         
-        # Export calendar files for each provider
-        if SAVE_CALENDARS:
-            print(f"\n=== EXPORTING CALENDAR FILES ===")
-            calendar_files = export_provider_calendars(combined_results, pcp_data)
-            print(f"✅ Saved {len(calendar_files)} calendar files to {CALENDAR_DIR}/")
         
         # Show provider summary with travel breakdown
         print(f"\n=== PROVIDER SUMMARY ===")
