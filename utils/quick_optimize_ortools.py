@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import os
 import time
+from datetime import datetime, timedelta
 
 # Add the parent directory to Python path so we can import from models
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,15 +28,23 @@ ALPHA = 0.05               # Service level buffer (0.05 = 5% buffer for 105% of 
 FACILITY_VISIT_WINDOW = 10              # Facility visit gap penalty window (working days)
 UNAVAILABLE_DATES_FILE = "data/provider_unavailable_dates.csv"  # Optional: provider unavailable dates
 
-def extract_patient_data_for_provider(pcp_data, census_month, target_provider_id):
+def extract_patient_data_for_provider(pcp_data, start_monday_str, target_provider_id):
     """Extract patient census data for a specific provider from PCP_Facility data."""
     try:
         business_line_data = pcp_data['business_line_data']
-        
-        # Check if the month exists in the data
-        if census_month not in business_line_data.columns:
-            print(f"WARNING: Month {census_month} not found in PCP_Facility data")
-            return None
+
+        try:
+            # Convert from "YYYY-MM-DD"
+            start_date = datetime.strptime(start_monday_str, '%Y-%m-%d')
+            data_column_to_use = f"{start_date.month}/{start_date.day}/{start_date.strftime('%y')}"
+        except ValueError:
+            raise ValueError(f"Invalid start_date format: {start_monday_str}. Expected YYYY-MM-DD")
+
+        print(f"   Reading 4-week patient demand from column: '{data_column_to_use}'")
+
+        # Check if the required column exists
+        if data_column_to_use not in business_line_data.columns:
+            raise ValueError(f"Data column '{data_column_to_use}' not found in file. Cannot load patient demand.")
         
         # Filter to target provider's facilities and patient counts
         provider_facilities = business_line_data[business_line_data['Anonymized_PCP_UID'] == target_provider_id]
@@ -51,7 +60,12 @@ def extract_patient_data_for_provider(pcp_data, census_month, target_provider_id
         
         for _, row in provider_facilities.iterrows():
             facility_id = row['Anonymized_Facility_UID']
-            patient_count = int(row[census_month])
+            patient_count = 0
+            try:
+                patient_count = int(row[data_column_to_use])
+            except Exception as e:
+                print(f"Warning: Could not read data for {facility_id}. Error: {e}")
+                patient_count = 0
             provider_patient_counts[facility_id] = patient_count
             total_provider_demand += patient_count
             if patient_count > 0:
@@ -71,7 +85,7 @@ def extract_patient_data_for_provider(pcp_data, census_month, target_provider_id
             'provider_facilities': list(provider_patient_counts.keys()),
             'provider_demand': total_provider_demand,
             'source': f'provider_{target_provider_id}_facilities',
-            'month': census_month,
+            'start_monday': start_monday_str,
             'total_demand': total_provider_demand
         }
         

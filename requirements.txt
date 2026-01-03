@@ -3,3 +3,6 @@ Flask-Cors
 numpy
 pyomo
 ortools
+pandas
+ics
+pytz

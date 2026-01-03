@@ -21,7 +21,7 @@ if is_running "react-scripts start"; then
     echo "✅ React frontend already running"
 else
     echo "🔄 Starting React frontend..."
-    cd frontend && npm start &
+    cd frontend && npm run dev &
     FRONTEND_PID=$!
     cd ..
 fi
@@ -33,7 +33,7 @@ sleep 5
 echo ""
 echo "🎉 Bluestone Scheduling System is ready!"
 echo "🖥️  Access the application at: http://localhost:3000"
-echo "🔧 Backend API available at: http://localhost:5000"
+echo "🔧 Backend API available at: http://localhost:5001"
 echo ""
 echo "Press Ctrl+C to stop all services"
 

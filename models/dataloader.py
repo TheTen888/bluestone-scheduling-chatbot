@@ -147,6 +147,37 @@ def load_distance_matrices(business_line):
         print(f"WARNING: Failed to load distance matrices for {business_line}: {e}")
         return None
 
+
+def load_census_data(csv_path: str, business_line: str, census_month: str) -> Dict[str, Any]:
+    try:
+        df = pd.read_csv(csv_path)
+
+        # Filter the DataFrame for the selected business line
+        business_line_df = df[df['Business Line'] == business_line]
+
+        if business_line_df.empty:
+            raise ValueError(f"No data found for business line '{business_line}' in {csv_path}")
+
+        # Check if the requested month exists as a column in the filtered data
+        if census_month not in business_line_df.columns:
+            raise ValueError(
+                f"Census month column '{census_month}' not found in {csv_path} for the selected business line.")
+
+        # Extract the patient counts from the specified month's column
+        # .fillna(0) replaces any empty cells with 0
+        # .astype(int) ensures the numbers are whole numbers
+        patient_counts = business_line_df[census_month].fillna(0).astype(int).tolist()
+
+        return {
+            'patient_counts': patient_counts
+        }
+    except FileNotFoundError:
+        print(f"ERROR: Census file not found at {csv_path}")
+        return {'patient_counts': []}
+    except Exception as e:
+        print(f"ERROR: Failed to load census data: {e}")
+        return {'patient_counts': []}
+
 def get_working_days_for_month(year: int, month: int):
     """Get all working days (Monday-Friday) for a given month."""
     working_days = []

@@ -38,14 +38,18 @@ def create_and_solve_optimization_model(
     patient_data: Optional[Dict] = None,
     distance_data: Optional[Dict] = None,
     business_line: str = "Wisconsin Geriatrics",
-    census_month: str = "2024-01",
     target_provider: Optional[int] = None,
     pcp_facility_data: Optional[Dict] = None,
     lambda_param: float = 1.0,
     lambda_facility: float = 1.0,
+    lambda_bunching: float = 0.0,
     alpha: float = 0.05,
     facility_visit_window: int = 10,
-    provider_unavailable_dates: Optional[set] = None
+    provider_unavailable_dates: Optional[set] = None,
+    required_visits: Optional[set] = None,
+    forbidden_visits: Optional[set] = None,
+    start_monday: Optional[str] = None,
+    weekly_availability: Optional[list] = None
 ) -> Dict[str, Any]:
     """
     Creates and solves multi-objective optimization model using OR-Tools that balances 
@@ -62,18 +66,32 @@ def create_and_solve_optimization_model(
                                    providers are unavailable (e.g., time off requests).
     """
     
-    # Parse census month to get year and month
-    try:
-        year, month = map(int, census_month.split('-'))
-    except:
-        raise ValueError(f"Invalid census_month format: {census_month}. Expected YYYY-MM")
+    # Decide which working days to use:
+    # - If start_monday is provided → 4-week rolling window starting from that date
+    if start_monday:
+        try:
+            start_date = datetime.strptime(start_monday, '%Y-%m-%d').date()
+        except ValueError:
+            raise ValueError(f"Invalid start_monday format: {start_monday}. Expected YYYY-MM-DD")
+        
+        # Build a 4-week window (28 calendar days) and keep only Mon–Fri
+        working_days = []
+        current = start_date
+        end_date = start_date + timedelta(days=7 * weeks)  # weeks=4 by default
+        while current < end_date:
+            # weekday(): 0=Mon, 1=Tue, ..., 4=Fri, 5=Sat, 6=Sun
+            if current.weekday() < 5:
+                working_days.append(current)
+            current += timedelta(days=1)
+        
+        print(f"\nScheduling for rolling 4-week window starting {start_date.strftime('%Y-%m-%d')}:")
+        if working_days:
+            print(f"   Working days: {len(working_days)} ({working_days[0].strftime('%m/%d')} to {working_days[-1].strftime('%m/%d')})")
+        else:
+            print("   WARNING: No working days generated for rolling window!")
     
-    # Get actual working days for the specified month
-    working_days = get_working_days_for_month(year, month)
     total_days = len(working_days)
-    
-    print(f"\nScheduling for {calendar.month_name[month]} {year}:")
-    print(f"   Working days: {total_days} ({working_days[0].strftime('%m/%d')} to {working_days[-1].strftime('%m/%d')})")
+
     
     # Extract valid provider-facility pairs from PCP-Facility data
     valid_pf_pairs = set()
@@ -87,7 +105,6 @@ def create_and_solve_optimization_model(
         if target_provider is None:
             print(f"\nStarting OR-Tools Travel Time Optimized Model")
             print(f"   Business Line: {business_line}")
-            print(f"   Census Month: {census_month}")
             print(f"   Valid Provider-Facility Pairs: {len(valid_pf_pairs)}")
             print(f"   Providers in Business Line: {len(unique_providers)}")
             print(f"   Facilities in Business Line: {len(unique_facilities)}")
@@ -154,12 +171,17 @@ def create_and_solve_optimization_model(
     availability = {}
     
     # Initialize with default availability (all days except Fridays)
+    day_mapping = {item['day']: item.get('isWorking', True) for item in weekly_availability}
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]  # Model only uses 0-4
+
     for p in active_providers:
         for d in range(total_days):
-            if working_days[d].weekday() == 4:  # Friday
-                availability[p, d] = 0  # No Fridays (existing rule)
+            day_of_week_name = day_names[working_days[d].weekday()]
+            # Check if this day is marked as "isWorking: false"
+            if not day_mapping.get(day_of_week_name, True):
+                availability[p, d] = 0  # Mark as unavailable
             else:
-                availability[p, d] = 1  # Available by default
+                availability[p, d] = 1
     
     # Apply unavailable dates from CSV if provided
     unavailable_count = 0
@@ -371,35 +393,83 @@ def create_and_solve_optimization_model(
         # CONSTRAINT 8: Facility Visit Gap Soft Constraints (Sliding Window)
         # Ensure every facility is visited approximately biweekly
         T = facility_visit_window  # penalty window parameter (configurable working days)
-        
+
         # Create slack variables for facility visit gaps: s[f,t] for facility f and window starting at day t
         s_facility_gap = {}
         for f in range(facilities):
             # Only create variables for facilities that have valid provider assignments
-            facilities_with_providers = [f_check for f_check in range(facilities) 
+            facilities_with_providers = [f_check for f_check in range(facilities)
                                        if any((p, f_check) in valid_pf_pairs for p in active_providers)]
             if f in facilities_with_providers:
                 for t in range(total_days):
                     s_facility_gap[f, t] = solver.NumVar(0, solver.infinity(), f's_facility_gap_{f}_{t}')
-        
+
         # Add sliding window constraints: sum of visits in 14-day window + slack >= 1
         for f in range(facilities):
-            facilities_with_providers = [f_check for f_check in range(facilities) 
+            facilities_with_providers = [f_check for f_check in range(facilities)
                                        if any((p, f_check) in valid_pf_pairs for p in active_providers)]
             if f in facilities_with_providers:
                 for t in range(total_days):
                     constraint = solver.Constraint(1, solver.infinity())
-                    
+
                     # Add all visits in the 14-day window starting at day t
                     for j in range(T):
                         day_idx = (t + j) % total_days  # wraparound using modulo
                         for p in active_providers:
                             if (p, f) in valid_pf_pairs:
                                 constraint.SetCoefficient(z[p, f, day_idx], 1)
-                    
+
                     # Add slack variable for this window
                     constraint.SetCoefficient(s_facility_gap[f, t], 1)
-        
+        # --- NEW: CONSTRAINT 10: Facility Visit "Bunching" Soft Constraint ---
+
+        T_bunching = 7  # Penalize visiting more than once in a 5-day window (approx 1 week)
+
+        s_facility_bunching = {}
+        for f in range(facilities):
+            facilities_with_providers = [f_check for f_check in range(facilities)
+                                         if any((p, f_check) in valid_pf_pairs for p in active_providers)]
+            if f in facilities_with_providers:  # We can reuse facilities_with_providers
+                for t in range(total_days):
+                    s_facility_bunching[f, t] = solver.NumVar(0, solver.infinity(),f's_facility_bunching_{f}_{t}')
+
+        # Add sliding window constraints: sum of visits in 5-day window - slack <= 1
+        for f in range(facilities):
+            facilities_with_providers = [f_check for f_check in range(facilities)
+                                         if any((p, f_check) in valid_pf_pairs for p in active_providers)]
+            if f in facilities_with_providers:
+                for t in range(total_days):
+                    constraint = solver.Constraint(-solver.infinity(), 1)
+
+                    # Add all visits in the 5-day window
+                    for j in range(T_bunching):
+                        day_idx = (t + j) % total_days
+                        for p in active_providers:
+                            if (p, f) in valid_pf_pairs:
+                                constraint.SetCoefficient(z[p, f, day_idx], 1)
+                    constraint.SetCoefficient(s_facility_bunching[f, t], -1)
+
+        # CONSTRAINT 9: Required facility visits (from user input)
+        if required_visits:
+            print(f"   Applying {len(required_visits)} required visit constraints...")
+            print("required_visits: " + str(required_visits))
+            for p, f, d in required_visits:
+                if p in active_providers and (p, f) in valid_pf_pairs and d < total_days:
+                            # Force z[p, f, d] = 1 (must visit)
+                            # constraint = solver.Constraint(1, 1)
+                            # constraint.SetCoefficient(z[p, f, d], 1)
+                    constraint = solver.Constraint(1, max_patients_per_day)
+                    constraint.SetCoefficient(x[p, f, d], 1)
+                else:
+                    print(f"WARNING: Cannot apply required visit for (P{p}, F{f}, D{d}) - invalid parameters.")
+
+        if forbidden_visits:
+            print(f"   Applying {len(forbidden_visits)} forbidden visit restrictions...")
+            for p, f, d in forbidden_visits:
+                if p in active_providers and (p, f) in valid_pf_pairs and d < total_days:
+                    constraint = solver.Constraint(0, 0)
+                    constraint.SetCoefficient(z[p, f, d], 1)
+
         # ========================================================================
         # OBJECTIVE FUNCTION
         # ========================================================================
@@ -478,6 +548,15 @@ def create_and_solve_optimization_model(
                 for t in range(total_days):
                     if (f, t) in s_facility_gap:
                         objective.SetCoefficient(s_facility_gap[f, t], lambda_facility)
+
+        # --- NEW: Term 5: Facility visit bunching penalties (SLACK FOR BUNCHING) ---
+        for f in range(facilities):
+            facilities_with_providers = [f_check for f_check in range(facilities)
+                                         if any((p, f_check) in valid_pf_pairs for p in active_providers)]
+            if f in facilities_with_providers:
+                for t in range(total_days):
+                    if (f, t) in s_facility_bunching:
+                        objective.SetCoefficient(s_facility_bunching[f, t], lambda_bunching)
         
         # Set to minimize
         objective.SetMinimization()
@@ -687,7 +766,7 @@ def create_and_solve_optimization_model(
             results['metadata'] = {
                 'model_type': 'ortools_travel_optimized_wisconsin_geriatrics_v2',
                 'business_line': business_line,
-                'census_month': census_month,
+                'start_monday': start_monday,
                 'data_source': 'real_census_data' if patient_data else 'fallback_uniform',
                 'travel_optimization': pcp_facility_df is not None,
                 'distance_matrices_available': pcp_facility_df is not None,
@@ -701,7 +780,6 @@ def create_and_solve_optimization_model(
                 'valid_provider_facility_pairs': len(valid_pf_pairs),
                 'unique_providers_in_business_line': len(set(p for p, f in valid_pf_pairs)),
                 'unique_facilities_in_business_line': len(set(f for p, f in valid_pf_pairs)),
-                'scheduling_month': f"{calendar.month_name[month]} {year}",
                 'working_days': total_days,
                 'date_range': f"{working_days[0].strftime('%Y-%m-%d')} to {working_days[-1].strftime('%Y-%m-%d')}",
                 'provider_availability': provider_availability_info,
@@ -722,7 +800,7 @@ def create_and_solve_optimization_model(
             'metadata': {
                 'model_type': 'ortools_travel_optimized_wisconsin_geriatrics_v2',
                 'business_line': business_line,
-                'census_month': census_month,
+                'start_monday': start_monday,
                 'error_type': 'general_error'
             }
         }

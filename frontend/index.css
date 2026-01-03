@@ -1,0 +1,33 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+        sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+    min-height: 100vh;
+}
+
+/* Highlight Mondays in react-day-picker calendar (local-only, no vertical stripes) */
+.rdp-day.rdp-monday:not(.rdp-day_selected):not(.rdp-day_disabled):not(.rdp-day_outside) {
+    background-color: rgba(79, 70, 229, 0.12); /* soft indigo tint */
+    border-radius: 9999px;                      /* circle/pill shape */
+    font-weight: 600;
+  }
+  
+  /* Selected Monday: strong highlight */
+  .rdp-day.rdp-monday.rdp-day_selected:not(.rdp-day_outside) {
+    background-color: #4f46e5;
+    color: white;
+    font-weight: 700;
+    border-radius: 9999px;
+  }
+  
